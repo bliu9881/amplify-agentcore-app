@@ -47,6 +47,7 @@ async function streamFromAgentCore(
     const headers: Record<string, string> = {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${accessToken}`,
+        'Accept': 'text/event-stream',
     };
 
     let reader: ReadableStreamDefaultReader<Uint8Array> | null = null;
@@ -79,14 +80,22 @@ async function streamFromAgentCore(
         const fullUrl = `${BEDROCK_AGENT_CORE_ENDPOINT_URL}/runtimes/${encodedEndpoint}/invocations`;
         console.log("fullUrl:", fullUrl)
         console.log("agentCoreEndpoint:", agentCoreEndpoint)
+        console.log("Request headers:", headers)
+        console.log("Request body:", JSON.stringify({ prompt: prompt.trim() }))
 
-        const agentResponse = await fetch(fullUrl, {
-            method: 'POST',
-            headers,
-            body: JSON.stringify({
-                prompt: prompt.trim(),
-            }),
-        });
+        let agentResponse: Response;
+        try {
+            agentResponse = await fetch(fullUrl, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({
+                    prompt: prompt.trim(),
+                }),
+            });
+        } catch (networkError) {
+            console.error('Network error calling AgentCore:', networkError);
+            throw new Error(`Network error: ${networkError instanceof Error ? networkError.message : 'Unknown network error'}`);
+        }
 
         console.log('AgentCore response status:', agentResponse.status);
         console.log('AgentCore response headers:', Object.fromEntries(agentResponse.headers.entries()));
