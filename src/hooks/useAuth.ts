@@ -1,9 +1,34 @@
-import { useAuthenticator } from '@aws-amplify/ui-react';
-import { fetchAuthSession, fetchUserAttributes } from 'aws-amplify/auth';
+import { fetchAuthSession, fetchUserAttributes, getCurrentUser, signOut as amplifySignOut } from 'aws-amplify/auth';
+import { useState, useEffect } from 'react';
 
 export function useAuth() {
-  // useAuthenticatorフックから認証情報を取得
-  const { user, signOut } = useAuthenticator();
+  const [user, setUser] = useState<any>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  useEffect(() => {
+    checkAuthState();
+  }, []);
+
+  const checkAuthState = async () => {
+    try {
+      const currentUser = await getCurrentUser();
+      setUser(currentUser);
+      setIsAuthenticated(true);
+    } catch (error) {
+      setUser(null);
+      setIsAuthenticated(false);
+    }
+  };
+
+  const signOut = async () => {
+    try {
+      await amplifySignOut();
+      setUser(null);
+      setIsAuthenticated(false);
+    } catch (error) {
+      console.error('Sign out error:', error);
+    }
+  };
   
   // IDトークンを取得する関数（ユーザー認証用）
   const getIdToken = async () => {
@@ -78,6 +103,7 @@ export function useAuth() {
     getAccessToken,
     getAuthTokens,
     getUserInfo,
-    isAuthenticated: !!user 
+    isAuthenticated,
+    checkAuthState
   };
 }

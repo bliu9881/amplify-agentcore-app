@@ -135,6 +135,9 @@ export function useSSEChat(options: SSEChatOptions = {}) {
     }
 
     try {
+      console.log('Sending message to API:', prompt);
+      console.log('Using tokens:', { idToken: idToken ? 'present' : 'missing', accessToken: accessToken ? 'present' : 'missing' });
+      
       // SSE APIにリクエストを送信
       const response = await fetch('/api/agent-stream', {
         method: 'POST',
@@ -146,6 +149,9 @@ export function useSSEChat(options: SSEChatOptions = {}) {
         },
         body: JSON.stringify({ prompt }),
       });
+
+      console.log('API Response status:', response.status);
+      console.log('API Response headers:', Object.fromEntries(response.headers.entries()));
 
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);

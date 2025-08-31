@@ -165,18 +165,59 @@ async function streamFromAgentCore(
 }
 
 export async function POST(request: NextRequest) {
+  console.log('=== Agent Stream API Called ===');
+  
   try {
     // IDトークンを検証
+    console.log('Validating ID token...');
     await validateIdToken(request);
+    console.log('ID token validated successfully');
 
     // アクセストークンを取得
+    console.log('Extracting access token...');
     const accessToken = extractAccessToken(request);
+    console.log('Access token extracted successfully');
 
     const { prompt, sessionId } = await request.json();
+    console.log('Request payload:', { prompt: prompt?.substring(0, 50) + '...', sessionId });
 
     // プロンプトの検証
     if (!prompt || typeof prompt !== 'string' || !prompt.trim()) {
+      console.log('Invalid prompt provided');
       return new Response('Bad Request: Empty or invalid prompt', { status: 400 });
+    }
+
+    // Environment check
+    const agentCoreEndpoint = process.env.AGENT_CORE_ENDPOINT;
+    console.log('AgentCore endpoint:', agentCoreEndpoint);
+    
+    if (!agentCoreEndpoint || agentCoreEndpoint === 'your-agentcore-endpoint-here') {
+      console.log('AgentCore endpoint not configured, using mock response for testing');
+      
+      // Return a mock streaming response for testing
+      const stream = new ReadableStream({
+        start(controller) {
+          const encoder = new TextEncoder();
+          const mockResponse = `Mock response to: "${prompt}". This is a test response since AgentCore is not configured yet.`;
+          
+          // Simulate streaming response
+          setTimeout(() => {
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ event: { contentBlockDelta: { delta: { text: mockResponse } } } })}\n\n`));
+            controller.close();
+          }, 1000);
+        },
+      });
+
+      return new Response(stream, {
+        headers: {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive',
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'POST',
+          'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Access-Token',
+        },
+      });
     }
 
     // AgentCore Runtimeとの通信用ストリーム

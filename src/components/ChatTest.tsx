@@ -2,13 +2,12 @@
 
 import { useState } from 'react';
 import { useSSEChat } from '@/hooks/useSSEChat';
-import { useAuthenticator } from '@aws-amplify/ui-react';
-import AuthDebug from './AuthDebug';
+import { useAuth } from '@/hooks/useAuth';
 
 export default function ChatTest() {
   const [input, setInput] = useState('');
   const { messages, isLoading, error, sendMessage, clearMessages } = useSSEChat();
-  const { user, signOut, authStatus } = useAuthenticator();
+  const { user, signOut, isAuthenticated } = useAuth();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -18,16 +17,15 @@ export default function ChatTest() {
     }
   };
 
-  return (
-    <div className="max-w-2xl mx-auto p-4">
-      <AuthDebug />
-      
-      {!user ? (
+  if (!isAuthenticated || !user) {
+    return (
+      <div className="max-w-2xl mx-auto p-4">
         <div className="text-center">
-          <p>Please complete authentication to access the chat.</p>
-          <p>Auth Status: {authStatus}</p>
+          <p>Loading authentication state...</p>
         </div>
-      ) : (
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-2xl mx-auto p-4">
@@ -43,7 +41,7 @@ export default function ChatTest() {
       
       <div className="mb-4 p-4 bg-gray-100 rounded">
         <p><strong>User:</strong> {user.username}</p>
-        <p><strong>Email:</strong> {user.signInDetails?.loginId}</p>
+        <p><strong>User ID:</strong> {user.userId}</p>
       </div>
 
       <div className="mb-4">
@@ -94,7 +92,6 @@ export default function ChatTest() {
           Send
         </button>
       </form>
-      )}
     </div>
   );
 }
