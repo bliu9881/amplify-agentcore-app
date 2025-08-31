@@ -227,18 +227,48 @@ export async function POST(request: NextRequest) {
         // Always try to call the real AgentCore endpoint
         console.log('Attempting to call AgentCore with endpoint:', agentCoreEndpoint);
 
+        // Test: Add a simple test response first to verify streaming works
+        console.log('Adding test response to verify streaming mechanism...');
+
         // AgentCore Runtimeとの通信用ストリーム
         const stream = new ReadableStream({
             async start(controller) {
+                const encoder = new TextEncoder();
+                
                 try {
+                    // First send a test message to verify streaming works
+                    console.log('Sending test message...');
+                    const testResponse = {
+                        event: {
+                            contentBlockDelta: {
+                                delta: {
+                                    text: "🔧 Testing connection to AgentCore... "
+                                }
+                            }
+                        }
+                    };
+                    controller.enqueue(encoder.encode(`data: ${JSON.stringify(testResponse)}\n\n`));
+                    
+                    // Small delay to see the test message
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                    
+                    // Now try the real AgentCore call
                     await streamFromAgentCore(accessToken, prompt, sessionId, controller, agentCoreEndpoint);
                 } catch (error) {
                     logError('AgentCore通信', error);
                     const errorMessage = getErrorMessage(error);
-                    const encoder = new TextEncoder();
 
                     try {
-                        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: `AgentCore通信エラー: ${errorMessage}` })}\n\n`));
+                        const errorResponse = {
+                            event: {
+                                contentBlockDelta: {
+                                    delta: {
+                                        text: `❌ AgentCore Error: ${errorMessage}`
+                                    }
+                                }
+                            }
+                        };
+                        controller.enqueue(encoder.encode(`data: ${JSON.stringify(errorResponse)}\n\n`));
                         controller.close();
                     } catch (controllerError) {
                         console.warn('Controller operation failed:', controllerError);
