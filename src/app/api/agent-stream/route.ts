@@ -40,7 +40,8 @@ async function streamFromAgentCore(
   accessToken: string,
   prompt: string,
   _sessionId: string,
-  controller: ReadableStreamDefaultController<Uint8Array>
+  controller: ReadableStreamDefaultController<Uint8Array>,
+  agentCoreEndpoint: string
 ): Promise<void> {
   const encoder = new TextEncoder();
   const headers: Record<string, string> = {
@@ -74,9 +75,10 @@ async function streamFromAgentCore(
   };
 
   try {
-    const encodedEndpoint = encodeURIComponent(process.env.AGENT_CORE_ENDPOINT || '');
+    const encodedEndpoint = encodeURIComponent(agentCoreEndpoint);
     const fullUrl = `${BEDROCK_AGENT_CORE_ENDPOINT_URL}/runtimes/${encodedEndpoint}/invocations`;
     console.log("fullUrl:", fullUrl)
+    console.log("agentCoreEndpoint:", agentCoreEndpoint)
 
     const agentResponse = await fetch(fullUrl, {
       method: 'POST',
@@ -188,45 +190,18 @@ export async function POST(request: NextRequest) {
     }
 
     // Environment check
-    const agentCoreEndpoint = process.env.AGENT_CORE_ENDPOINT;
+    const agentCoreEndpoint = process.env.AGENT_CORE_ENDPOINT || 'arn:aws:bedrock-agentcore:us-west-2:779227446268:runtime/main-Uo5NHl7pal';
     console.log('AgentCore endpoint:', agentCoreEndpoint);
     console.log('All environment variables:', Object.keys(process.env).filter(key => key.includes('AGENT')));
     
-    if (!agentCoreEndpoint || agentCoreEndpoint === 'your-agentcore-endpoint-here' || !agentCoreEndpoint.startsWith('arn:aws:bedrock-agentcore:')) {
-      console.log('AgentCore endpoint not properly configured, using mock response for testing');
-      console.log('Expected format: arn:aws:bedrock-agentcore:region:account:runtime/name');
-      
-      // Return a mock streaming response for testing
-      const stream = new ReadableStream({
-        start(controller) {
-          const encoder = new TextEncoder();
-          const mockResponse = `Mock response to: "${prompt}". This is a test response since AgentCore is not configured yet.`;
-          
-          // Simulate streaming response
-          setTimeout(() => {
-            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ event: { contentBlockDelta: { delta: { text: mockResponse } } } })}\n\n`));
-            controller.close();
-          }, 1000);
-        },
-      });
-
-      return new Response(stream, {
-        headers: {
-          'Content-Type': 'text/event-stream',
-          'Cache-Control': 'no-cache',
-          'Connection': 'keep-alive',
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'POST',
-          'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Access-Token',
-        },
-      });
-    }
+    // Always try to call the real AgentCore endpoint
+    console.log('Attempting to call AgentCore with endpoint:', agentCoreEndpoint);
 
     // AgentCore Runtimeとの通信用ストリーム
     const stream = new ReadableStream({
       async start(controller) {
         try {
-          await streamFromAgentCore(accessToken, prompt, sessionId, controller);
+          await streamFromAgentCore(accessToken, prompt, sessionId, controller, agentCoreEndpoint);
         } catch (error) {
           logError('AgentCore通信', error);
           const errorMessage = getErrorMessage(error);
