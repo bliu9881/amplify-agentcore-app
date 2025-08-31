@@ -11,7 +11,11 @@ export default function AuthProvider({
 }) {
     return (
         <Authenticator>
-            {children}
+            {({ signOut, user }) => (
+                <div>
+                    {children}
+                </div>
+            )}
         </Authenticator>
     );
 }
