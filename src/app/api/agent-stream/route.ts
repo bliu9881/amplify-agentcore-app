@@ -190,9 +190,11 @@ export async function POST(request: NextRequest) {
     // Environment check
     const agentCoreEndpoint = process.env.AGENT_CORE_ENDPOINT;
     console.log('AgentCore endpoint:', agentCoreEndpoint);
+    console.log('All environment variables:', Object.keys(process.env).filter(key => key.includes('AGENT')));
     
-    if (!agentCoreEndpoint || agentCoreEndpoint === 'your-agentcore-endpoint-here') {
-      console.log('AgentCore endpoint not configured, using mock response for testing');
+    if (!agentCoreEndpoint || agentCoreEndpoint === 'your-agentcore-endpoint-here' || !agentCoreEndpoint.startsWith('arn:aws:bedrock-agentcore:')) {
+      console.log('AgentCore endpoint not properly configured, using mock response for testing');
+      console.log('Expected format: arn:aws:bedrock-agentcore:region:account:runtime/name');
       
       // Return a mock streaming response for testing
       const stream = new ReadableStream({
