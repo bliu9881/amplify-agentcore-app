@@ -1,8 +1,16 @@
 import { fetchAuthSession, fetchUserAttributes, getCurrentUser, signOut as amplifySignOut } from 'aws-amplify/auth';
 import { useState, useEffect } from 'react';
 
+interface AuthUser {
+  userId: string;
+  username: string;
+  signInDetails?: {
+    loginId?: string;
+  };
+}
+
 export function useAuth() {
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
@@ -12,9 +20,9 @@ export function useAuth() {
   const checkAuthState = async () => {
     try {
       const currentUser = await getCurrentUser();
-      setUser(currentUser);
+      setUser(currentUser as AuthUser);
       setIsAuthenticated(true);
-    } catch (error) {
+    } catch {
       setUser(null);
       setIsAuthenticated(false);
     }
@@ -35,8 +43,8 @@ export function useAuth() {
     try {
       const session = await fetchAuthSession();
       return session.tokens?.idToken?.toString();
-    } catch (error) {
-      console.error('IDトークン取得エラー:', error);
+    } catch {
+      console.error('IDトークン取得エラー');
       return null;
     }
   };
@@ -46,8 +54,8 @@ export function useAuth() {
     try {
       const session = await fetchAuthSession();
       return session.tokens?.accessToken?.toString();
-    } catch (error) {
-      console.error('アクセストークン取得エラー:', error);
+    } catch {
+      console.error('アクセストークン取得エラー');
       return null;
     }
   };
@@ -60,8 +68,8 @@ export function useAuth() {
         idToken: session.tokens?.idToken?.toString(),
         accessToken: session.tokens?.accessToken?.toString(),
       };
-    } catch (error) {
-      console.error('認証トークン取得エラー:', error);
+    } catch {
+      console.error('認証トークン取得エラー');
       return { idToken: null, accessToken: null };
     }
   };
@@ -84,8 +92,8 @@ export function useAuth() {
         // ユーザー属性（email, name等）
         attributes: attributes,
       };
-    } catch (error) {
-      console.error('ユーザー属性取得エラー:', error);
+    } catch {
+      console.error('ユーザー属性取得エラー');
       return {
         userId: user.userId,
         username: user.username,
