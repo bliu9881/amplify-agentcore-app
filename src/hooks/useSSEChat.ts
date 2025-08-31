@@ -2,17 +2,17 @@ import { useState, useCallback } from 'react';
 import { useAuth } from './useAuth';
 
 /**
- * SSEチャット機能のオプション設定
+ * Configuration options for SSE chat functionality
  */
 interface SSEChatOptions {
-  maxRetries?: number;    // 最大再試行回数
-  retryDelay?: number;    // 再試行間隔（ミリ秒）
+  maxRetries?: number;    // Maximum retry attempts
+  retryDelay?: number;    // Retry interval (milliseconds)
 }
 
 /**
- * SSE形式の行からデータ部分を抽出する
- * @param line SSEの1行
- * @returns 抽出されたデータ、または null
+ * Extract data portion from SSE format line
+ * @param line One line of SSE
+ * @returns Extracted data, or null
  */
 const extractDataFromLine = (line: string): string | null => {
   if (line.startsWith('data: ')) {
@@ -22,12 +22,12 @@ const extractDataFromLine = (line: string): string | null => {
 };
 
 /**
- * パースされたJSONからメッセージ内容を抽出する
- * @param parsed パースされたJSONオブジェクト
- * @returns 抽出されたテキスト内容、または null
+ * Extract message content from parsed JSON
+ * @param parsed Parsed JSON object
+ * @returns Extracted text content, or null
  */
 const extractMessageContent = (parsed: Record<string, unknown>): string | null => {
-  // エラーチェック
+  // Error check
   if (parsed.error && typeof parsed.error === 'string') {
     throw new Error(parsed.error);
   }
@@ -43,10 +43,10 @@ const extractMessageContent = (parsed: Record<string, unknown>): string | null =
 };
 
 /**
- * SSEレスポンスを処理してメッセージを更新する
- * @param response Fetchレスポンス
- * @param onMessageUpdate メッセージ更新時のコールバック
- * @param onComplete 完了時のコールバック
+ * Process SSE response and update messages
+ * @param response Fetch response
+ * @param onMessageUpdate Callback for message updates
+ * @param onComplete Callback for completion
  */
 const processStreamingResponse = async (
   response: Response,
@@ -63,10 +63,10 @@ const processStreamingResponse = async (
       const { done, value } = await reader.read();
       if (done) break;
 
-      // バイナリデータをテキストに変換
+      // Convert binary data to text
       buffer += decoder.decode(value, { stream: true });
 
-      // 改行で分割して各行を処理
+      // Split by newlines and process each line
       const lines = buffer.split('\n');
       buffer = lines.pop() || '';
 
@@ -84,7 +84,7 @@ const processStreamingResponse = async (
             onMessageUpdate(currentMessage);
           }
         } catch {
-          // JSONパースエラーは無視して続行
+          // Ignore JSON parse errors and continue
         }
       }
     }
@@ -96,26 +96,26 @@ const processStreamingResponse = async (
 };
 
 /**
- * SSE（Server-Sent Events）を使用したチャット機能のカスタムフック
+ * Custom hook for chat functionality using SSE (Server-Sent Events)
  * 
- * @param options 設定オプション
- * @returns チャット機能のstate と関数
+ * @param options Configuration options
+ * @returns Chat functionality state and functions
  */
 export function useSSEChat(options: SSEChatOptions = {}) {
   const { maxRetries = 3, retryDelay = 1000 } = options;
 
-  // State管理
+  // State management
   const [messages, setMessages] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // 認証管理
+  // Authentication management
   const { getAuthTokens } = useAuth();
 
   /**
-   * メッセージを送信してAIからの応答を受信する
-   * @param prompt ユーザーからの入力プロンプト
-   * @param retryCount 現在の再試行回数（内部使用）
+   * Send message and receive AI response
+   * @param prompt User input prompt
+   * @param retryCount Current retry count (internal use)
    */
   const sendMessage = useCallback(async (
     prompt: string,
@@ -126,10 +126,10 @@ export function useSSEChat(options: SSEChatOptions = {}) {
     setIsLoading(true);
     setError(null);
 
-    // 認証トークンを取得
+    // Get authentication tokens
     const { idToken, accessToken } = await getAuthTokens();
     if (!idToken || !accessToken) {
-      setError('認証トークンが取得できません');
+      setError('Unable to get authentication tokens');
       setIsLoading(false);
       return;
     }
@@ -138,7 +138,7 @@ export function useSSEChat(options: SSEChatOptions = {}) {
       console.log('Sending message to API:', prompt);
       console.log('Using tokens:', { idToken: idToken ? 'present' : 'missing', accessToken: accessToken ? 'present' : 'missing' });
       
-      // SSE APIにリクエストを送信
+      // Send request to SSE API
       const response = await fetch('/api/agent-stream', {
         method: 'POST',
         headers: {
@@ -158,20 +158,20 @@ export function useSSEChat(options: SSEChatOptions = {}) {
       }
 
       if (!response.body) {
-        throw new Error('レスポンスボディがありません');
+        throw new Error('No response body');
       }
 
-      // 新しいメッセージスロットを追加
+      // Add new message slot
       setMessages(prev => [...prev, '']);
 
-      // ストリーミングレスポンスを処理
+      // Process streaming response
       await processStreamingResponse(
         response,
-        // メッセージ更新時
+        // On message update
         (currentMessage) => {
           setMessages(prev => [...prev.slice(0, -1), currentMessage]);
         },
-        // 完了時
+        // On completion
         (finalMessage) => {
           if (finalMessage) {
             setMessages(prev => [...prev.slice(0, -1), finalMessage]);
@@ -182,14 +182,14 @@ export function useSSEChat(options: SSEChatOptions = {}) {
       );
 
     } catch (fetchError) {
-      // 自動再試行（指数バックオフ）
+      // Automatic retry (exponential backoff)
       if (retryCount < maxRetries) {
         setTimeout(() => {
           sendMessage(prompt, retryCount + 1);
         }, retryDelay * Math.pow(2, retryCount));
       } else {
         const errorMessage = fetchError instanceof Error ? fetchError.message : 'Unknown error';
-        setError(`通信エラー: ${errorMessage}`);
+        setError(`Communication error: ${errorMessage}`);
       }
     } finally {
       setIsLoading(false);
@@ -197,7 +197,7 @@ export function useSSEChat(options: SSEChatOptions = {}) {
   }, [getAuthTokens, maxRetries, retryDelay]);
 
   /**
-   * メッセージ履歴をクリアする
+   * Clear message history
    */
   const clearMessages = useCallback(() => {
     setMessages([]);
@@ -205,10 +205,10 @@ export function useSSEChat(options: SSEChatOptions = {}) {
   }, []);
 
   return {
-    messages,      // メッセージ履歴
-    isLoading,     // 送信中フラグ
-    error,         // エラーメッセージ
-    sendMessage,   // メッセージ送信関数
-    clearMessages, // 履歴クリア関数
+    messages,      // Message history
+    isLoading,     // Sending flag
+    error,         // Error message
+    sendMessage,   // Message sending function
+    clearMessages, // History clear function
   };
 }

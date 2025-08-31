@@ -5,7 +5,7 @@ import { getErrorMessage, logError } from '@/lib/error-utils';
 const BEDROCK_AGENT_CORE_ENDPOINT_URL = "https://bedrock-agentcore.us-west-2.amazonaws.com"
 
 /**
- * リクエストからIDトークンを抽出・検証する
+ * Extract and validate ID token from request
  */
 async function validateIdToken(request: NextRequest): Promise<string> {
     const authHeader = request.headers.get('authorization');
@@ -23,7 +23,7 @@ async function validateIdToken(request: NextRequest): Promise<string> {
 }
 
 /**
- * リクエストからアクセストークンを抽出する
+ * Extract access token from request
  */
 function extractAccessToken(request: NextRequest): string {
     const accessToken = request.headers.get('x-access-token');
@@ -34,7 +34,7 @@ function extractAccessToken(request: NextRequest): string {
 }
 
 /**
- * AgentCore Runtimeとの通信を処理する
+ * Handle communication with AgentCore Runtime
  */
 async function streamFromAgentCore(
     accessToken: string,
@@ -124,7 +124,7 @@ async function streamFromAgentCore(
             console.log('Received chunk from AgentCore:', chunk);
             buffer += chunk;
 
-            // 即座に処理するため、改行ごとに分割して順次処理
+            // Process immediately by splitting on newlines and processing sequentially
             let newlineIndex;
             while ((newlineIndex = buffer.indexOf('\n')) !== -1) {
                 const line = buffer.slice(0, newlineIndex).trim();
@@ -133,7 +133,7 @@ async function streamFromAgentCore(
                 console.log('Processing line:', line);
                 if (!line || isClosed) continue;
 
-                // SSE形式の処理
+                // Process SSE format
                 if (line.startsWith('data: ')) {
                     const data = line.slice(6).trim();
                     if (data === '[DONE]') {
@@ -145,17 +145,17 @@ async function streamFromAgentCore(
                         const parsed = JSON.parse(data);
                         safeEnqueue(encoder.encode(`data: ${JSON.stringify(parsed)}\n\n`));
                     } catch {
-                        // JSONパースエラーは無視
+                        // Ignore JSON parse errors
                     }
                 } else {
-                    // JSON形式の直接レスポンスの場合
+                    // For direct JSON format responses
                     try {
                         const parsed = JSON.parse(line);
                         console.log('Parsed JSON from AgentCore:', parsed);
                         safeEnqueue(encoder.encode(`data: ${JSON.stringify(parsed)}\n\n`));
                     } catch (parseError) {
                         console.log('Failed to parse JSON, treating as plain text:', line);
-                        // JSONパースに失敗した場合、プレーンテキストとして処理
+                        // If JSON parsing fails, treat as plain text
                         if (line.trim()) {
                             const textResponse = {
                                 event: {
@@ -173,13 +173,13 @@ async function streamFromAgentCore(
             }
         }
 
-        // バッファに残ったデータを処理
+        // Process remaining data in buffer
         if (buffer.trim() && !isClosed) {
             try {
                 const parsed = JSON.parse(buffer);
                 safeEnqueue(encoder.encode(`data: ${JSON.stringify(parsed)}\n\n`));
             } catch {
-                // JSONパースエラーは無視
+                // Ignore JSON parse errors
             }
         }
 
@@ -189,7 +189,7 @@ async function streamFromAgentCore(
             try {
                 reader.releaseLock();
             } catch {
-                // リーダーのリリースに失敗しても続行
+                // Continue even if reader release fails
             }
         }
         throw error;
@@ -200,12 +200,12 @@ export async function POST(request: NextRequest) {
     console.log('=== Agent Stream API Called ===');
 
     try {
-        // IDトークンを検証
+        // Validate ID token
         console.log('Validating ID token...');
         await validateIdToken(request);
         console.log('ID token validated successfully');
 
-        // アクセストークンを取得
+        // Get access token
         console.log('Extracting access token...');
         const accessToken = extractAccessToken(request);
         console.log('Access token extracted successfully');
@@ -213,7 +213,7 @@ export async function POST(request: NextRequest) {
         const { prompt, sessionId } = await request.json();
         console.log('Request payload:', { prompt: prompt?.substring(0, 50) + '...', sessionId });
 
-        // プロンプトの検証
+        // Validate prompt
         if (!prompt || typeof prompt !== 'string' || !prompt.trim()) {
             console.log('Invalid prompt provided');
             return new Response('Bad Request: Empty or invalid prompt', { status: 400 });
@@ -230,7 +230,7 @@ export async function POST(request: NextRequest) {
         // Test: Add a simple test response first to verify streaming works
         console.log('Adding test response to verify streaming mechanism...');
 
-        // AgentCore Runtimeとの通信用ストリーム
+        // Stream for communication with AgentCore Runtime
         const stream = new ReadableStream({
             async start(controller) {
                 const encoder = new TextEncoder();
@@ -255,7 +255,7 @@ export async function POST(request: NextRequest) {
                     // Now try the real AgentCore call
                     await streamFromAgentCore(accessToken, prompt, sessionId, controller, agentCoreEndpoint);
                 } catch (error) {
-                    logError('AgentCore通信', error);
+                    logError('AgentCore Communication', error);
                     const errorMessage = getErrorMessage(error);
 
                     try {
@@ -288,14 +288,14 @@ export async function POST(request: NextRequest) {
             },
         });
     } catch (error) {
-        // 認証エラーの場合
+        // Authentication error case
         if (error instanceof Error &&
             (error.message.includes('Missing') || error.message.includes('Invalid'))) {
             return new Response(`Unauthorized: ${error.message}`, { status: 401 });
         }
 
-        // その他のエラー
-        logError('SSEエンドポイント', error);
+        // Other errors
+        logError('SSE Endpoint', error);
         const errorMessage = getErrorMessage(error);
         return new Response(`Internal Server Error: ${errorMessage}`, { status: 500 });
     }
