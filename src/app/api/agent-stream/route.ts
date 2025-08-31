@@ -2,6 +2,22 @@ import { NextRequest } from 'next/server';
 import { verifyJWT } from '@/lib/auth-utils';
 import { getErrorMessage, logError } from '@/lib/error-utils';
 
+/**
+ * Decode JWT token without verification (for debugging)
+ */
+function decodeJWT(token: string) {
+    try {
+        const parts = token.split('.');
+        if (parts.length !== 3) return null;
+
+        const payload = JSON.parse(atob(parts[1]));
+        return payload;
+    } catch (error) {
+        console.error('Failed to decode JWT:', error);
+        return null;
+    }
+}
+
 const BEDROCK_AGENT_CORE_ENDPOINT_URL = "https://bedrock-agentcore.us-west-2.amazonaws.com"
 
 /**
@@ -210,6 +226,10 @@ export async function POST(request: NextRequest) {
         const accessToken = extractAccessToken(request);
         console.log('Access token extracted successfully');
 
+        // Debug: Decode the access token to see its claims
+        const decodedToken = decodeJWT(accessToken);
+        console.log('Decoded access token claims:', JSON.stringify(decodedToken, null, 2));
+
         const { prompt, sessionId } = await request.json();
         console.log('Request payload:', { prompt: prompt?.substring(0, 50) + '...', sessionId });
 
@@ -234,7 +254,7 @@ export async function POST(request: NextRequest) {
         const stream = new ReadableStream({
             async start(controller) {
                 const encoder = new TextEncoder();
-                
+
                 try {
                     // First send a test message to verify streaming works
                     console.log('Sending test message...');
@@ -248,10 +268,10 @@ export async function POST(request: NextRequest) {
                         }
                     };
                     controller.enqueue(encoder.encode(`data: ${JSON.stringify(testResponse)}\n\n`));
-                    
+
                     // Small delay to see the test message
                     await new Promise(resolve => setTimeout(resolve, 500));
-                    
+
                     // Now try the real AgentCore call
                     await streamFromAgentCore(accessToken, prompt, sessionId, controller, agentCoreEndpoint);
                 } catch (error) {
